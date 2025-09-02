@@ -1,16 +1,9 @@
 # aura
 
-A new Flutter project.
+```bash
+flutter run # to try it out
+```
 
-## Getting Started
+## Looking for code for parsing URLS + DIDs + Bluesky handles?
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+[Take a look at this from the web prototype on the `docs` branch](https://github.com/cwervo/aura/blob/a475378eb27f90daa08e78beaa7c82917b8d3c16/index.html#L158)
