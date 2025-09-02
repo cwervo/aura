@@ -55,8 +55,12 @@ class _BrowserPageState extends State<BrowserPage> {
     String location = _omniBarController.text.trim();
     if (location.isEmpty) return;
 
-    // Basic protocol check for regular URLs
-    if (!location.startsWith('http://') && !location.startsWith('https://')) {
+    // Handle ATProto handles
+    if (location.startsWith('@')) {
+      final handle = location.substring(1);
+      location = 'https://bsky.app/profile/$handle';
+    } else if (!location.startsWith('http://') && !location.startsWith('https://')) {
+      // Basic protocol check for regular URLs
       if (location.contains('.') && !location.contains(' ')) {
         location = 'https://$location';
       }
@@ -71,7 +75,7 @@ class _BrowserPageState extends State<BrowserPage> {
       });
     } else {
       // In the future, you can handle ATProto links here.
-      print("ATProto navigation not implemented yet for: $location");
+      print("Navigation not implemented for: $location");
     }
   }
 
