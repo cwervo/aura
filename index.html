@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aura Browser (MVB Prototype)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font and scrollbar styling for a more polished look */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        html, body {
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2d3748;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4a5568;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #718096;
+        }
+        /* Removed the hardcoded height from here, will be managed by JS */
+
+        /* Tooltip Styles */
+        .favorite-item[data-tooltip] {
+            position: relative;
+        }
+        .favorite-item[data-tooltip]::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%; /* Position above the element */
+            left: 50%;
+            transform: translateX(-50%);
+            
+            background-color: #1a202c; /* bg-gray-900 */
+            color: #e2e8f0; /* text-gray-200 */
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            z-index: 20;
+            
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            border: 1px solid #4a5568; /* border-gray-600 */
+        }
+        .favorite-item[data-tooltip]:hover::after {
+            opacity: 1;
+            visibility: visible;
+        }
+    </style>
+</head>
+<body class="bg-gray-800 text-white">
+
+    <div id="browser-container" class="flex flex-col h-full">
+
+        <!-- Browser Chrome: Omni-bar -->
+        <div id="browser-chrome" class="bg-gray-900 p-2 flex items-center space-x-3 shadow-md z-10" style="height: 60px;">
+            <div class="flex space-x-1.5">
+                <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                <div class="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+            </div>
+            <div class="flex-grow">
+                <form id="nav-form" class="w-full">
+                    <input type="text" id="omni-bar" name="location"
+                           class="w-full bg-gray-700 text-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="Enter a URL, ATProto handle (@handle.bsky.social), or DID (did:plc:...)">
+                </form>
+            </div>
+        </div>
+
+        <!-- Favorites Bar -->
+        <div id="favorites-bar" class="bg-gray-900 px-4 pb-2 flex items-center space-x-4 border-t border-gray-800/50 shadow-md z-10">
+            <a href="#" data-location="https://example.com" class="favorite-item relative text-sm text-gray-300 hover:bg-gray-700/50 px-3 py-1 rounded-md transition-colors whitespace-nowrap" data-tooltip="🌐 Web Address">🌐 example.com</a>
+            <a href="#" data-location="did:plc:by3jhwdqgbtrcc7q4tkkv3cf" class="favorite-item relative text-sm text-gray-300 hover:bg-gray-700/50 px-3 py-1 rounded-md transition-colors whitespace-nowrap" data-tooltip="✨ DID">✨ Alice</a>
+            <a href="#" data-location="@alice.mosphere.at" class="favorite-item relative text-sm text-gray-300 hover:bg-gray-700/50 px-3 py-1 rounded-md transition-colors whitespace-nowrap" data-tooltip="🦋 Bluesky Handle">🦋 alice.mosphere.at</a>
+            <a href="#" data-location="@cwervo.bsky.social" class="favorite-item relative text-sm text-gray-300 hover:bg-gray-700/50 px-3 py-1 rounded-md transition-colors whitespace-nowrap" data-tooltip="🦋 Bluesky Handle">🦋 cwervo</a>
+        </div>
+
+
+        <!-- Main Content View -->
+        <div id="content-view" class="flex-grow bg-gray-800 overflow-y-auto">
+            <!-- Content (iframe or ATProto Space) will be injected here -->
+            <div class="h-full flex items-center justify-center text-gray-500">
+                <div class="text-center">
+                    <h1 class="text-3xl font-bold mb-2">Welcome to Aura</h1>
+                    <p>Navigate to a website or an ATProto Space to begin.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const navForm = document.getElementById('nav-form');
+        const omniBar = document.getElementById('omni-bar');
+        const contentView = document.getElementById('content-view');
+        const browserChrome = document.getElementById('browser-chrome');
+        const favoritesBar = document.getElementById('favorites-bar');
+
+        const BSKY_PUBLIC_API = 'https://public.api.bsky.app/xrpc';
+        
+        function adjustContentViewHeight() {
+            const chromeHeight = browserChrome.offsetHeight;
+            const favoritesHeight = favoritesBar.offsetHeight;
+            contentView.style.height = `calc(100vh - ${chromeHeight + favoritesHeight}px)`;
+        }
+
+        // Adjust height on initial load and on window resize
+        window.addEventListener('load', adjustContentViewHeight);
+        window.addEventListener('resize', adjustContentViewHeight);
+
+
+        // Listen for Cmd+L or Ctrl+L to focus the address bar
+        document.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+                e.preventDefault();
+                omniBar.focus();
+                omniBar.select();
+            }
+        });
+
+        // Event listener for clicks on the favorites bar
+        favoritesBar.addEventListener('click', (e) => {
+            e.preventDefault();
+            const target = e.target.closest('.favorite-item');
+            if (target && target.dataset.location) {
+                const location = target.dataset.location;
+                omniBar.value = location;
+                navigate(location);
+            }
+        });
+        
+        // Event delegation for clicks inside the content view (for post links)
+        contentView.addEventListener('click', (e) => {
+            const postLink = e.target.closest('.post-link');
+            if (postLink) {
+                e.preventDefault();
+                const location = postLink.dataset.location;
+                if (location) {
+                    omniBar.value = location;
+                    navigate(location);
+                }
+            }
+        });
+
+
+        navForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            // Sanitize the input to remove invisible characters that can break API calls.
+            let location = omniBar.value.replace(/[\u200B-\u200D\uFEFF\u202A-\u202E]/g, '').trim();
+            if (!location) return;
+
+            // Check for Bluesky profile/post URLs and extract the identifier or full URL
+            // This regex is now more flexible to support did:web, did:plc, and handles.
+            const bskyProfileRegex = /^https?:\/\/bsky\.app\/profile\/([\w:.-]+)/;
+            const bskyPostRegex = /^https?:\/\/bsky\.app\/profile\/[\w:.-]+\/post\/[a-zA-Z0-9]+/;
+            
+            const profileMatch = location.match(bskyProfileRegex);
+            const postMatch = location.match(bskyPostRegex);
+
+            if (profileMatch && profileMatch[1]) {
+                // If it's a bsky profile URL, we navigate to the identifier directly
+                location = profileMatch[1];
+                // Prepend @ if it's a handle, otherwise it's a DID.
+                if (!location.startsWith('did:')) {
+                    location = '@' + location;
+                }
+            } else if (postMatch) {
+                // This is a post URL, we'll let it be handled by loadWebView
+            } else {
+                 // Basic protocol check for regular URLs
+                if (!location.startsWith('http://') && !location.startsWith('https://') && !location.startsWith('@') && !location.startsWith('did:')) {
+                    if (location.includes('.') && !location.includes(' ')) {
+                        location = 'https://' + location;
+                    }
+                }
+            }
+            
+            omniBar.value = location; // Update bar with corrected URL/identifier
+            navigate(location);
+        });
+
+        function navigate(location) {
+            // Show loading state
+            contentView.innerHTML = `<div class="h-full flex items-center justify-center text-gray-400"><svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span class="ml-3">Loading...</span></div>`;
+
+            if (location.startsWith('@') || location.startsWith('did:')) {
+                loadAtprotoSpace(location);
+            } else {
+                loadWebView(location);
+            }
+        }
+
+        function loadWebView(url) {
+            const iframe = document.createElement('iframe');
+            iframe.src = url;
+            iframe.className = 'w-full h-full border-0';
+            iframe.onerror = () => {
+                contentView.innerHTML = `<div class="h-full flex items-center justify-center text-red-400"><p>Could not load this URL. Many sites block being embedded.</p></div>`;
+            };
+            contentView.innerHTML = '';
+            contentView.appendChild(iframe);
+        }
+
+        async function loadAtprotoSpace(initialIdentifier) {
+            let actorIdentifier = initialIdentifier;
+            try {
+                // If the identifier is a handle (starts with @), resolve it to a DID first for canonical access.
+                if (actorIdentifier.startsWith('@')) {
+                    // The handle parameter for the API call should not include the '@'.
+                    const handle = actorIdentifier.substring(1); 
+                    const resolveRes = await fetch(`${BSKY_PUBLIC_API}/com.atproto.identity.resolveHandle?handle=${handle}`);
+                    
+                    if (!resolveRes.ok) {
+                        const errorData = await resolveRes.json();
+                        throw new Error(`Could not resolve handle ${actorIdentifier}. Server says: ${errorData.message || 'Not Found'}`);
+                    }
+                    
+                    const resolveData = await resolveRes.json();
+                    actorIdentifier = resolveData.did; // Use the DID for all subsequent requests.
+                    
+                    // Update the omni-bar to show the canonical identifier (the DID).
+                    omniBar.value = actorIdentifier;
+                }
+
+                // Fetch profile and feed in parallel using the canonical actor identifier (DID).
+                const [profileRes, feedRes] = await Promise.all([
+                    fetch(`${BSKY_PUBLIC_API}/app.bsky.actor.getProfile?actor=${actorIdentifier}`),
+                    fetch(`${BSKY_PUBLIC_API}/app.bsky.feed.getAuthorFeed?actor=${actorIdentifier}&limit=50`)
+                ]);
+
+                if (!profileRes.ok) {
+                   const errorData = await profileRes.json();
+                   throw new Error(`Profile not found for ${actorIdentifier}. Server says: ${errorData.message}`);
+                }
+                
+                const profile = await profileRes.json();
+                const feedData = feedRes.ok ? await feedRes.json() : { feed: [] };
+
+                renderAtprotoSpace(profile, feedData.feed);
+
+            } catch (error) {
+                console.error("Failed to load ATProto Space:", error);
+                
+                // FIX: Use toLowerCase() for a case-insensitive check.
+                if (error.message.toLowerCase().includes('profile not found') && initialIdentifier.startsWith('did:web:')) {
+                    const domain = initialIdentifier.substring(8); // Remove "did:web:" prefix
+                    console.log(`did:web profile not found for ${domain}. Falling back to loading website.`);
+                    loadWebView(`https://${domain}`);
+                    return; // Stop further execution
+                }
+
+                contentView.innerHTML = `<div class="h-full flex items-center justify-center text-red-400"><p>${error.message}</p></div>`;
+            }
+        }
+
+        function renderAtprotoSpace(profile, feed) {
+            let spaceHTML = `
+                <div class="max-w-3xl mx-auto p-4 sm:p-6">
+                    <!-- Profile Header -->
+                    <header class="flex items-start space-x-4 p-4 border-b border-gray-700">
+                        <img src="${profile.avatar || 'https://placehold.co/100x100/4A5568/E2E8F0?text=A'}" alt="Avatar" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-700 object-cover">
+                        <div class="flex-grow">
+                            <h1 class="text-2xl sm:text-3xl font-bold">${profile.displayName || profile.handle}</h1>
+                            <p class="text-sm text-blue-400">@${profile.handle}</p>
+                            <p class="text-gray-300 mt-2 text-base">${profile.description ? formatPostText(profile.description) : ''}</p>
+                        </div>
+                    </header>
+                    <!-- Feed -->
+                    <main class="mt-4 space-y-4">
+                        ${feed.length > 0 ? feed.map(item => renderPost(item.post)).join('') : '<p class="text-center text-gray-500 py-8">This user has no posts yet.</p>'}
+                    </main>
+                </div>
+            `;
+            contentView.innerHTML = spaceHTML;
+        }
+
+        function renderPost(post) {
+            const record = post.record;
+            const text = record.text ? formatPostText(record.text) : '';
+            const createdAt = new Date(record.createdAt).toLocaleString();
+
+            // Extract rkey from post URI to build the direct link to the post on bsky.app
+            const rkey = post.uri.split('/').pop();
+            const postUrl = `https://bsky.app/profile/${post.author.handle}/post/${rkey}`;
+
+            let embedHTML = '';
+            if (post.embed && post.embed.$type === 'app.bsky.embed.images#view') {
+                const imageCount = post.embed.images.length;
+                const gridClass = imageCount > 1 ? `grid grid-cols-${Math.min(imageCount, 2)} gap-2` : '';
+                embedHTML = `<div class="mt-3 ${gridClass}">
+                    ${post.embed.images.map(img => `<img src="${img.thumb}" alt="${img.alt || 'Embedded image'}" class="rounded-lg w-full h-auto object-cover border border-gray-700">`).join('')}
+                </div>`;
+            }
+
+            return `
+                <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
+                    <div class="flex items-center space-x-3">
+                        <img src="${post.author.avatar || 'https://placehold.co/48x48/4A5568/E2E8F0?text=A'}" alt="Avatar" class="w-10 h-10 rounded-full bg-gray-700">
+                        <div>
+                            <span class="font-semibold">${post.author.displayName || post.author.handle}</span>
+                            <a href="#" data-location="${postUrl}" class="post-link text-gray-400 text-sm underline px-2 py-0.5 rounded-md transition-colors hover:bg-gray-700/50 inline-flex items-center">
+                                <span class="mx-1">·</span>
+                                ${createdAt}
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="ml-1.5 opacity-70"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-gray-200 whitespace-pre-wrap">${text}</div>
+                    ${embedHTML}
+                </div>
+            `;
+        }
+        
+        // Simple formatter to convert markdown-like links into HTML anchors
+        function formatPostText(text) {
+            // Sanitize text to prevent HTML injection
+            const sanitizedText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            // Find markdown-style links [text](url) and replace with <a> tags
+            const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+            return sanitizedText.replace(linkRegex, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">$1</a>');
+        }
+
+    </script>
+</body>
+</html>
+
+

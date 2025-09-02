@@ -1,16 +1,10 @@
-# aura
+# Aura
 
-A new Flutter project.
+This is an initial prototype of a browser that can handle web and ATProto links.
 
-## Getting Started
+> What if a browser could navigate #ATProto DIDs and 🦋 Bluesky handles?
+> Made a little prototype of Aura, a browser that can navigate between standard websites (🌐), Bluesky handles (@), and permanent DIDs, resolving them all in the same address bar.
+— [@cwervo.bsky.social](https://bsky.app/profile/did:plc:j3p5rtlkmfyngjtwyscmt4tc/post/3lxsf5fqf3c25)
 
-This project is a starting point for a Flutter application.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+_Flutter-based app coming soon._
