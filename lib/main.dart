@@ -1,13 +1,12 @@
 import 'package:aura/services/bsky_api.dart';
+import 'package:aura/omni_bar.dart';
 import 'package:aura/widgets/at_proto_space_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'omni_bar.dart';
 import 'favorites_bar.dart';
-import 'platform_webview.dart'; // Import our new cross-platform widget
+import 'platform_webview.dart';
 
 void main() {
-  // This is still required for the native (desktop/mobile) versions to work.
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const AuraBrowserApp());
 }
@@ -45,6 +44,7 @@ class _BrowserPageState extends State<BrowserPage> {
 
   ViewType _currentView = ViewType.webview;
   String _currentIdentifier = 'https://example.com';
+  bool _isEditingOmniBar = false;
 
   @override
   void initState() {
@@ -61,48 +61,40 @@ class _BrowserPageState extends State<BrowserPage> {
     super.dispose();
   }
 
-  void _navigate() {
-    // Sanitize the input to remove invisible characters that can break API calls.
-    String location = _omniBarController.text
-        .replaceAll(RegExp(r'[\u200B-\u200D\uFEFF\u202A-\u202E]'), '')
-        .trim();
-    if (location.isEmpty) return;
-
-    // Check for Bluesky profile/post URLs and extract the identifier or full URL
-    final bskyProfileRegex =
-        RegExp(r'^https?:\/\/bsky\.app\/profile\/([\w:.-]+)');
-    final bskyPostRegex =
-        RegExp(r'^https?:\/\/bsky\.app\/profile\/[\w:.-]+\/post\/[a-zA-Z0-9]+');
-
-    final profileMatch = bskyProfileRegex.firstMatch(location);
-    final postMatch = bskyPostRegex.firstMatch(location);
-
-    if (profileMatch != null && profileMatch.group(1) != null) {
-      // It's a bsky profile URL, we navigate to the identifier directly
-      location = profileMatch.group(1)!;
-      // Prepend @ if it's a handle, otherwise it's a DID.
-      if (!location.startsWith('did:')) {
-        location = '@$location';
-      }
-    } else if (postMatch != null) {
-      // This is a post URL, we'll let it be handled by loadWebView
-    } else {
-      // Basic protocol check for regular URLs
-      if (!location.startsWith('http://') &&
-          !location.startsWith('https://') &&
-          !location.startsWith('@') &&
-          !location.startsWith('did:')) {
-        if (location.contains('.') && !location.contains(' ')) {
-          location = 'https://$location';
-        }
-      }
+  void _navigate(String location) {
+    if (location.isEmpty) {
+      setState(() => _isEditingOmniBar = false);
+      return;
     }
 
-    _omniBarController.text = location; // Update bar with corrected URL/identifier
-    _loadContent(location);
+    final bskyProfileRegex =
+        RegExp(r'^https?:\/\/bsky\.app\/profile\/([\w:.-]+)');
+    final profileMatch = bskyProfileRegex.firstMatch(location);
+
+    if (profileMatch != null) {
+      String identifier = profileMatch.group(1)!;
+      if (!identifier.startsWith('did:')) {
+        identifier = '@$identifier';
+      }
+      _omniBarController.text = identifier;
+      _loadContent(identifier);
+    } else if (location.startsWith('@') || location.startsWith('did:')) {
+      _loadContent(location);
+    } else if (location.startsWith('https://') ||
+        location.startsWith('http://')) {
+      _loadContent(location);
+    } else if (location.contains('.') && !location.contains(' ')) {
+      final url = 'https://$location';
+      _omniBarController.text = url;
+      _loadContent(url);
+    } else {
+      _loadContent(location);
+    }
+    setState(() => _isEditingOmniBar = false);
   }
 
   void _loadContent(String identifier) {
+    _omniBarController.text = identifier;
     if (identifier.startsWith('@') || identifier.startsWith('did:')) {
       setState(() {
         _currentIdentifier = identifier;
@@ -117,14 +109,11 @@ class _BrowserPageState extends State<BrowserPage> {
   }
 
   void _onFavoriteSelected(String location) {
-    // Set the omnibar text and navigate
-    _omniBarController.text = location;
-    _navigate();
+    _navigate(location);
   }
 
   void _onDidWebFallback(String url) {
-    _omniBarController.text = url;
-    _loadContent(url);
+    _navigate(url);
   }
 
   @override
@@ -142,6 +131,7 @@ class _BrowserPageState extends State<BrowserPage> {
         actions: <Type, Action<Intent>>{
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (ActivateIntent intent) {
+              setState(() => _isEditingOmniBar = true);
               _omniBarFocusNode.requestFocus();
               _omniBarController.selection = TextSelection(
                 baseOffset: 0,
@@ -154,11 +144,7 @@ class _BrowserPageState extends State<BrowserPage> {
         child: Scaffold(
           body: Column(
             children: [
-              OmniBar(
-                controller: _omniBarController,
-                onSubmitted: _navigate,
-                focusNode: _omniBarFocusNode,
-              ),
+              _buildOmniBar(),
               FavoritesBar(onFavoriteSelected: _onFavoriteSelected),
               Expanded(
                 child: _buildContentView(),
@@ -167,6 +153,50 @@ class _BrowserPageState extends State<BrowserPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildOmniBar() {
+    if (_isEditingOmniBar) {
+      return Container(
+        color: const Color(0xFF1a202c),
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+        child: TextField(
+          controller: _omniBarController,
+          focusNode: _omniBarFocusNode,
+          autofocus: true,
+          onSubmitted: _navigate,
+          onTapOutside: (_) => setState(() => _isEditingOmniBar = false),
+          style: const TextStyle(color: Color(0xFFe2e8f0)),
+          decoration: InputDecoration(
+            hintText: 'Enter a URL, ATProto handle, or DID...',
+            hintStyle: const TextStyle(color: Color(0xFFa0aec0)),
+            filled: true,
+            fillColor: const Color(0xFF4a5568),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8.0),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8.0),
+              borderSide:
+                  const BorderSide(color: Color(0xFF4299e1), width: 2.0),
+            ),
+          ),
+        ),
+      );
+    }
+    return SemanticOmniBar(
+      identifier: _currentIdentifier,
+      onTap: () {
+        setState(() {
+          _isEditingOmniBar = true;
+        });
+        _omniBarFocusNode.requestFocus();
+      },
+      onNavigate: _navigate,
     );
   }
 
@@ -180,11 +210,9 @@ class _BrowserPageState extends State<BrowserPage> {
         );
       case ViewType.webview:
       default:
-        // Ensure we have a valid URL for the webview
         if (_currentIdentifier.startsWith('http')) {
           return PlatformWebView(url: _currentIdentifier);
         } else {
-          // If the identifier is not a valid URL (e.g. a search query), show a message.
           return Center(
               child: Text(
                   "Cannot display '$_currentIdentifier'. Please enter a valid URL, handle, or DID."));

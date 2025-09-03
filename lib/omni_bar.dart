@@ -1,77 +1,210 @@
 import 'package:flutter/material.dart';
 
-class OmniBar extends StatelessWidget {
-  final TextEditingController controller;
-  // This callback allows the parent to know when the user presses "Enter".
-  final VoidCallback onSubmitted;
-  final FocusNode focusNode;
+enum Sigil { web, did, bluesky, atproto }
 
-  const OmniBar({
+class SemanticOmniBar extends StatelessWidget {
+  final String identifier;
+  final VoidCallback onTap;
+  final Function(String) onNavigate;
+
+  const SemanticOmniBar({
     super.key,
-    required this.controller,
-    required this.onSubmitted,
-    required this.focusNode,
+    required this.identifier,
+    required this.onTap,
+    required this.onNavigate,
   });
+
+  Sigil _getSigil(String identifier) {
+    if (identifier.startsWith('did:')) {
+      return Sigil.did;
+    }
+    if (identifier.startsWith('@')) {
+      return Sigil.bluesky;
+    }
+    if (identifier.startsWith('at:')) {
+      return Sigil.atproto;
+    }
+    return Sigil.web;
+  }
+
+  String _getSigilIcon(Sigil sigil) {
+    switch (sigil) {
+      case Sigil.did:
+        return '✨';
+      case Sigil.bluesky:
+        return '🦋';
+      case Sigil.atproto:
+        return '@';
+      case Sigil.web:
+      default:
+        return '🌐';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF1a202c), // bg-gray-900
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-      child: Row(
-        children: [
-          Row(
+    final sigil = _getSigil(identifier);
+    final sigilIcon = _getSigilIcon(sigil);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        color: const Color(0xFF1a202c), // bg-gray-900
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF4a5568), // bg-gray-700
+            borderRadius: BorderRadius.circular(8.0),
+          ),
+          child: Row(
             children: [
-              _buildTrafficLight(const Color(0xFFff5f56)), // Red
-              const SizedBox(width: 6),
-              _buildTrafficLight(const Color(0xFFffbd2e)), // Yellow
-              const SizedBox(width: 6),
-              _buildTrafficLight(const Color(0xFF27c93f)), // Green
+              Text(sigilIcon, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 12),
+              _buildBreadcrumbs(context, identifier),
+              const SizedBox(width: 12),
+              _buildQueryInspector(context, identifier),
             ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              // Add the onSubmitted handler to trigger navigation
-              onSubmitted: (_) => onSubmitted(),
-              style: const TextStyle(color: Color(0xFFe2e8f0)), // text-gray-200
-              decoration: InputDecoration(
-                hintText: 'Enter a URL, ATProto handle, or DID...',
-                hintStyle: const TextStyle(
-                  color: Color(0xFFa0aec0),
-                ), // text-gray-400
-                filled: true,
-                fillColor: const Color(0xFF4a5568), // bg-gray-700
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                  borderSide: const BorderSide(
-                    color: Color(0xFF4299e1),
-                    width: 2.0,
-                  ), // ring-blue-500
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildTrafficLight(Color color) {
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
+  Widget _buildQueryInspector(BuildContext context, String identifier) {
+    if (!identifier.startsWith('http')) {
+      return const SizedBox.shrink(); // No query params for non-http
+    }
+    try {
+      final uri = Uri.parse(identifier);
+      if (uri.queryParameters.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      return TextButton(
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.white,
+          backgroundColor: Colors.black26,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18.0),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+        ),
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('Query Parameters'),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: uri.queryParameters.entries.length,
+                    itemBuilder: (context, index) {
+                      final entry =
+                          uri.queryParameters.entries.elementAt(index);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${entry.key}: ',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold)),
+                            Expanded(child: Text(entry.value)),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Close'),
+                  )
+                ],
+              );
+            },
+          );
+        },
+        child: Text('? Query (${uri.queryParameters.length})'),
+      );
+    } catch (e) {
+      return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildBreadcrumbs(BuildContext context, String identifier) {
+    if (!identifier.startsWith('http')) {
+      return Expanded(
+        child: Text(
+          identifier,
+          style: const TextStyle(color: Color(0xFFe2e8f0), fontSize: 14),
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }
+
+    try {
+      final uri = Uri.parse(identifier);
+      final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+
+      if (segments.isEmpty) {
+        // No path, just show hostname
+        return Expanded(
+          child: Text(
+            uri.host,
+            style: const TextStyle(color: Color(0xFFe2e8f0), fontSize: 14),
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }
+
+      List<Widget> breadcrumbWidgets = [];
+      breadcrumbWidgets.add(
+        InkWell(
+          onTap: () => onNavigate(uri.replace(path: '').toString()),
+          child: Text(uri.host,
+              style: const TextStyle(color: Color(0xFFe2e8f0), fontSize: 14)),
+        ),
+      );
+
+      String currentPath = '';
+      for (final segment in segments) {
+        currentPath += '/$segment';
+        final newUrl = uri.replace(path: currentPath).toString();
+
+        breadcrumbWidgets
+            .add(const Text(' / ', style: TextStyle(color: Colors.grey)));
+        breadcrumbWidgets.add(
+          InkWell(
+            onTap: () => onNavigate(newUrl),
+            child: Text(
+              segment,
+              style: const TextStyle(color: Color(0xFFe2e8f0), fontSize: 14),
+            ),
+          ),
+        );
+      }
+
+      return Expanded(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: breadcrumbWidgets),
+        ),
+      );
+    } catch (e) {
+      // Fallback for invalid URI
+      return Expanded(
+        child: Text(
+          identifier,
+          style: const TextStyle(color: Color(0xFFe2e8f0), fontSize: 14),
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }
   }
 }
