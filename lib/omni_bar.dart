@@ -1,15 +1,16 @@
-// File: lib/omni_bar.dart
 import 'package:flutter/material.dart';
 
 class OmniBar extends StatelessWidget {
   final TextEditingController controller;
   // This callback allows the parent to know when the user presses "Enter".
   final VoidCallback onSubmitted;
+  final FocusNode focusNode;
 
   const OmniBar({
     super.key,
     required this.controller,
     required this.onSubmitted,
+    required this.focusNode,
   });
 
   @override
@@ -32,6 +33,7 @@ class OmniBar extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              focusNode: focusNode,
               // Add the onSubmitted handler to trigger navigation
               onSubmitted: (_) => onSubmitted(),
               style: const TextStyle(color: Color(0xFFe2e8f0)), // text-gray-200

@@ -1,4 +1,3 @@
-// File: lib/favorites_bar.dart
 import 'package:flutter/material.dart';
 
 // A simple data class for our favorite items
@@ -6,11 +5,13 @@ class FavoriteItem {
   final String display;
   final String location;
   final String emoji;
+  final String tooltip;
 
   FavoriteItem({
     required this.display,
     required this.location,
     required this.emoji,
+    required this.tooltip,
   });
 }
 
@@ -27,21 +28,25 @@ class FavoritesBar extends StatelessWidget {
       display: 'example.com',
       location: 'https://example.com',
       emoji: '🌐',
+      tooltip: 'Web Address',
     ),
     FavoriteItem(
       display: 'Alice',
       location: 'did:plc:by3jhwdqgbtrcc7q4tkkv3cf',
       emoji: '✨',
+      tooltip: 'DID',
     ),
     FavoriteItem(
       display: 'alice.mosphere.at',
       location: '@alice.mosphere.at',
       emoji: '🦋',
+      tooltip: 'Bluesky Handle',
     ),
     FavoriteItem(
       display: 'cwervo',
       location: '@cwervo.bsky.social',
       emoji: '🦋',
+      tooltip: 'Bluesky Handle',
     ),
   ];
 
@@ -59,30 +64,33 @@ class FavoritesBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: _favorites.map((item) {
-            return Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: TextButton(
-                onPressed: () {
-                  // When pressed, call the callback with the item's location
-                  onFavoriteSelected(item.location);
-                },
-                style:
-                    TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFcbd5e0), // text-gray-300
-                      backgroundColor: Colors.transparent,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12.0,
-                        vertical: 6.0,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6.0),
-                      ),
-                    ).copyWith(
-                      overlayColor: MaterialStateProperty.all(
-                        const Color(0x804a5568),
-                      ), // hover:bg-gray-700/50
+            return Tooltip(
+              message: item.tooltip,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: TextButton(
+                  onPressed: () {
+                    // When pressed, call the callback with the item's location
+                    onFavoriteSelected(item.location);
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor:
+                        const Color(0xFFcbd5e0), // text-gray-300
+                    backgroundColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12.0,
+                      vertical: 6.0,
                     ),
-                child: Text('${item.emoji} ${item.display}'),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6.0),
+                    ),
+                  ).copyWith(
+                    overlayColor: MaterialStateProperty.all(
+                      const Color(0x804a5568),
+                    ), // hover:bg-gray-700/50
+                  ),
+                  child: Text('${item.emoji} ${item.display}'),
+                ),
               ),
             );
           }).toList(),

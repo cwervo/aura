@@ -6,10 +6,16 @@ This project is a prototype of a web browser with experimental support for decen
 
 The Aura Browser has the following features:
 
-*   **Webview:** Renders web pages using the `webview_flutter` plugin.
-*   **OmniBar:** An address bar that can be used to navigate to websites or resolve AT Protocol handles.
-*   **Favorites Bar:** A bar with favorite websites for quick navigation.
-*   **AT Protocol Handle Resolution:** The browser can resolve AT Protocol handles (e.g., `@alice.com`) to their corresponding profiles on bsky.app.
+*   **Hybrid View:** Can render standard web pages using a webview, or a native-like "ATProto Space" view for decentralized identity content.
+*   **Advanced OmniBar:** The address bar can handle:
+    *   Standard URLs (e.g., `https://example.com`)
+    *   AT Protocol handles (e.g., `@alice.bsky.social`)
+    *   AT Protocol DIDs (e.g., `did:plc:..`)
+    *   Bluesky profile URLs (e.g., `https://bsky.app/profile/alice.bsky.social`)
+*   **ATProto Space View:** When you navigate to an AT Protocol identifier, the browser renders a custom view that displays the user's profile and a feed of their recent posts, fetched directly from the Bluesky public API.
+*   **did:web Fallback:** If a `did:web:` profile is not found on the AT Protocol, the browser automatically falls back to displaying the corresponding website.
+*   **Favorites Bar with Tooltips:** The favorites bar provides quick access to a few sample locations. Hover over them to see a tooltip describing the link type.
+*   **Keyboard Shortcuts:** Press `Cmd+L` (on macOS) or `Ctrl+L` (on other platforms) to quickly focus the address bar.
 
 ## Getting Started
 
