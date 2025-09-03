@@ -30,7 +30,7 @@ class SemanticOmniBar extends StatelessWidget {
   String _getSigilIcon(Sigil sigil) {
     switch (sigil) {
       case Sigil.did:
-        return '✨';
+        return '❈';
       case Sigil.bluesky:
         return '🦋';
       case Sigil.atproto:

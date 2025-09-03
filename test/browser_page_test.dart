@@ -177,6 +177,75 @@ void main() {
     expect(find.byType(PlatformWebView), findsOneWidget);
     expect(find.text('flutter.dev'), findsOneWidget);
   });
+
+  testWidgets('Back and forward buttons are disabled initially', (tester) async {
+    final api = createMockApi((request) async => http.Response('', 404));
+    await pumpBrowserPage(tester, api);
+
+    final backButton = find.widgetWithIcon(IconButton, Icons.arrow_back);
+    final forwardButton = find.widgetWithIcon(IconButton, Icons.arrow_forward);
+
+    expect(tester.widget<IconButton>(backButton).onPressed, isNull);
+    expect(tester.widget<IconButton>(forwardButton).onPressed, isNull);
+  });
+
+  testWidgets('Back and forward buttons update correctly on navigation',
+      (tester) async {
+    final api = createMockApi((request) async => http.Response('', 404));
+    await pumpBrowserPage(tester, api);
+
+    final backButton = find.widgetWithIcon(IconButton, Icons.arrow_back);
+    final forwardButton = find.widgetWithIcon(IconButton, Icons.arrow_forward);
+
+    // Initial state
+    expect(tester.widget<IconButton>(backButton).onPressed, isNull);
+    expect(tester.widget<IconButton>(forwardButton).onPressed, isNull);
+
+    // Navigate to a new page
+    await enterEditMode(tester);
+    await tester.enterText(find.byType(TextField), 'https://flutter.dev');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    // Back should be enabled, forward should be disabled
+    expect(tester.widget<IconButton>(backButton).onPressed, isNotNull);
+    expect(tester.widget<IconButton>(forwardButton).onPressed, isNull);
+
+    // Go back
+    await tester.tap(backButton);
+    await tester.pumpAndSettle();
+
+    // Back should be disabled, forward should be enabled
+    expect(tester.widget<IconButton>(backButton).onPressed, isNull);
+    expect(tester.widget<IconButton>(forwardButton).onPressed, isNotNull);
+
+    // Go forward
+    await tester.tap(forwardButton);
+    await tester.pumpAndSettle();
+
+    // Back should be enabled, forward should be disabled again
+    expect(tester.widget<IconButton>(backButton).onPressed, isNotNull);
+    expect(tester.widget<IconButton>(forwardButton).onPressed, isNull);
+  });
+
+  testWidgets('New tab button resets to example.com', (tester) async {
+    final api = createMockApi((request) async => http.Response('', 404));
+    await pumpBrowserPage(tester, api);
+
+    // Navigate to a new page first
+    await enterEditMode(tester);
+    await tester.enterText(find.byType(TextField), 'https://flutter.dev');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.text('flutter.dev'), findsOneWidget);
+
+    // Click new tab button
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.add_box_outlined));
+    await tester.pumpAndSettle();
+
+    // Check that we are back at example.com
+    expect(find.text('example.com'), findsOneWidget);
+  });
 }
 
 class FakeHttpClient implements HttpClient {

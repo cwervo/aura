@@ -33,7 +33,7 @@ class FavoritesBar extends StatelessWidget {
     FavoriteItem(
       display: 'Alice',
       location: 'did:plc:by3jhwdqgbtrcc7q4tkkv3cf',
-      emoji: '✨',
+      emoji: '❈',
       tooltip: 'DID',
     ),
     FavoriteItem(

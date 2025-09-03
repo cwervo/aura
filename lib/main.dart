@@ -46,12 +46,18 @@ class _BrowserPageState extends State<BrowserPage> {
   String _currentIdentifier = 'https://example.com';
   bool _isEditingOmniBar = false;
 
+  final List<String> _history = [];
+  int _historyIndex = -1;
+
   @override
   void initState() {
     super.initState();
     _omniBarController = TextEditingController(text: _currentIdentifier);
     _omniBarFocusNode = FocusNode();
     _bskyApi = widget.bskyApi ?? BskyApi();
+    // Initialize history
+    _history.add(_currentIdentifier);
+    _historyIndex = 0;
   }
 
   @override
@@ -61,7 +67,7 @@ class _BrowserPageState extends State<BrowserPage> {
     super.dispose();
   }
 
-  void _navigate(String location) {
+  void _handleNavigationIntent(String location) {
     if (location.isEmpty) {
       setState(() => _isEditingOmniBar = false);
       return;
@@ -71,49 +77,74 @@ class _BrowserPageState extends State<BrowserPage> {
         RegExp(r'^https?:\/\/bsky\.app\/profile\/([\w:.-]+)');
     final profileMatch = bskyProfileRegex.firstMatch(location);
 
+    String finalLocation = location;
+
     if (profileMatch != null) {
       String identifier = profileMatch.group(1)!;
       if (!identifier.startsWith('did:')) {
         identifier = '@$identifier';
       }
-      _omniBarController.text = identifier;
-      _loadContent(identifier);
-    } else if (location.startsWith('@') || location.startsWith('did:')) {
-      _loadContent(location);
-    } else if (location.startsWith('https://') ||
-        location.startsWith('http://')) {
-      _loadContent(location);
-    } else if (location.contains('.') && !location.contains(' ')) {
-      final url = 'https://$location';
-      _omniBarController.text = url;
-      _loadContent(url);
-    } else {
-      _loadContent(location);
+      finalLocation = identifier;
+    } else if (!location.startsWith('@') &&
+        !location.startsWith('did:') &&
+        !location.startsWith('https://') &&
+        !location.startsWith('http://')) {
+      if (location.contains('.') && !location.contains(' ')) {
+        finalLocation = 'https://$location';
+      }
     }
+
+    _navigateTo(finalLocation);
     setState(() => _isEditingOmniBar = false);
+  }
+
+  void _navigateTo(String location) {
+    if (location == _currentIdentifier) return;
+
+    setState(() {
+      if (_historyIndex < _history.length - 1) {
+        _history.removeRange(_historyIndex + 1, _history.length);
+      }
+      _history.add(location);
+      _historyIndex++;
+      _loadContent(location);
+    });
+  }
+
+  void _goBack() {
+    if (_historyIndex > 0) {
+      setState(() {
+        _historyIndex--;
+        _loadContent(_history[_historyIndex]);
+      });
+    }
+  }
+
+  void _goForward() {
+    if (_historyIndex < _history.length - 1) {
+      setState(() {
+        _historyIndex++;
+        _loadContent(_history[_historyIndex]);
+      });
+    }
   }
 
   void _loadContent(String identifier) {
     _omniBarController.text = identifier;
+    _currentIdentifier = identifier;
     if (identifier.startsWith('@') || identifier.startsWith('did:')) {
-      setState(() {
-        _currentIdentifier = identifier;
-        _currentView = ViewType.atprotoSpace;
-      });
+      _currentView = ViewType.atprotoSpace;
     } else {
-      setState(() {
-        _currentIdentifier = identifier;
-        _currentView = ViewType.webview;
-      });
+      _currentView = ViewType.webview;
     }
   }
 
   void _onFavoriteSelected(String location) {
-    _navigate(location);
+    _handleNavigationIntent(location);
   }
 
   void _onDidWebFallback(String url) {
-    _navigate(url);
+    _handleNavigationIntent(url);
   }
 
   @override
@@ -144,7 +175,7 @@ class _BrowserPageState extends State<BrowserPage> {
         child: Scaffold(
           body: Column(
             children: [
-              _buildOmniBar(),
+              _buildTopBar(),
               FavoritesBar(onFavoriteSelected: _onFavoriteSelected),
               Expanded(
                 child: _buildContentView(),
@@ -156,21 +187,49 @@ class _BrowserPageState extends State<BrowserPage> {
     );
   }
 
+  Widget _buildTopBar() {
+    return Container(
+      color: const Color(0xFF1a202c),
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _historyIndex > 0 ? _goBack : null,
+            color: Colors.white,
+          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_forward),
+            onPressed: _historyIndex < _history.length - 1 ? _goForward : null,
+            color: Colors.white,
+          ),
+          Expanded(child: _buildOmniBar()),
+          IconButton(
+            icon: const Icon(Icons.add_box_outlined),
+            onPressed: () => _handleNavigationIntent('https://example.com'),
+            color: Colors.white,
+            tooltip: 'New Tab',
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOmniBar() {
     if (_isEditingOmniBar) {
-      return Container(
-        color: const Color(0xFF1a202c),
-        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+      return SizedBox(
+        height: 36,
         child: TextField(
           controller: _omniBarController,
           focusNode: _omniBarFocusNode,
           autofocus: true,
-          onSubmitted: _navigate,
+          onSubmitted: _handleNavigationIntent,
           onTapOutside: (_) => setState(() => _isEditingOmniBar = false),
-          style: const TextStyle(color: Color(0xFFe2e8f0)),
+          style: const TextStyle(color: Color(0xFFe2e8f0), fontSize: 14),
           decoration: InputDecoration(
             hintText: 'Enter a URL, ATProto handle, or DID...',
-            hintStyle: const TextStyle(color: Color(0xFFa0aec0)),
+            hintStyle:
+                const TextStyle(color: Color(0xFFa0aec0), fontSize: 14),
             filled: true,
             fillColor: const Color(0xFF4a5568),
             contentPadding:
@@ -196,7 +255,7 @@ class _BrowserPageState extends State<BrowserPage> {
         });
         _omniBarFocusNode.requestFocus();
       },
-      onNavigate: _navigate,
+      onNavigate: _handleNavigationIntent,
     );
   }
 
